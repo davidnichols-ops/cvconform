@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cvconform"
+version = "0.1.0"
+description = "The correctness and reliability layer for computer vision AI systems. Differential verification that answers: is this still the same model?"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "David Nichols" }]
+keywords = ["computer-vision", "onnx", "coreml", "verification", "ml", "reliability", "differential-testing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+# Minimal runtime (always installed-ish) — differential engine core.
+core = [
+    "numpy>=1.24",
+    "onnx>=1.14",
+    "onnxruntime>=1.17",
+]
+pytorch = ["torch>=2.0"]
+coreml = ["coremltools>=7.0"]
+tensorflow = ["tensorflow>=2.12"]
+openvino = ["openvino>=2023.1"]
+mlx = ["mlx>=0.5"]
+tensorrt = ["onnx-tensorrt"]  # CI/GPU only; engines for parsing, not exec
+research = ["requests>=2.28"]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "build",
+    "twine",
+]
+
+[project.scripts]
+cvconform = "cvconform.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cvconform*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

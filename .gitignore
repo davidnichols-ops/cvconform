@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# Test / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Tooling / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Machine-generated artifacts (models are reproducible from examples/)
+examples_output/
+*.mlpackage/
+*.mlmodel
