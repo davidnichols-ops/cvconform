@@ -323,6 +323,7 @@ def verify(
     # ---- environment + analysis -----------------------------------------
     env = ref_rt.info().to_dict()
     findings_map = _build_findings(all_results, source_kind, model)
+    research = _research_findings(findings_map)
 
     report = {
         "model": os.path.basename(model),
@@ -337,11 +338,29 @@ def verify(
                         "scores": r["scores"], "divergences": r["divergences"]}
                     for t, r in all_results.items()},
         "findings": findings_map,
+        "research": research,
         "target_status": {t: ("conformant" if r["is_conformant"] else
                               "degraded" if r["overall_score"] > 0 else "error")
                           for t, r in all_results.items()},
     }
     return report
+
+
+def _research_findings(findings_map: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Pass each finding through the AI Research Agent to add an investigation."""
+    from cvconform.research import ResearchAgent
+
+    agent = ResearchAgent(offline_ok=True)
+    out = []
+    for f in findings_map:
+        if not f:
+            continue
+        try:
+            s = agent.investigate(f)
+            out.append(s.to_dict())
+        except Exception:  # noqa: BLE001
+            out.append(None)
+    return [o for o in out if o]
 
 
 def _target_artifact_from_path(path, target):

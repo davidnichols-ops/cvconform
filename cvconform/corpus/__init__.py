@@ -76,14 +76,27 @@ class ConformanceCorpus:
     # -- read ------------------------------------------------------------
     def list_failures(self, backend: Optional[str] = None) -> List[Dict[str, Any]]:
         entries = []
-        base = os.path.join(self.failures_dir, backend) if backend else self.failures_dir
-        if not os.path.isdir(base):
-            return entries
-        for slug in sorted(os.listdir(base)):
-            mp = os.path.join(base, slug, "manifest.json")
-            if os.path.exists(mp):
-                with open(mp) as f:
-                    entries.append(json.load(f))
+        if backend:
+            # single backend dir: failures/<backend>/<slug>/manifest.json
+            base = os.path.join(self.failures_dir, backend)
+            if os.path.isdir(base):
+                for slug in sorted(os.listdir(base)):
+                    mp = os.path.join(base, slug, "manifest.json")
+                    if os.path.exists(mp):
+                        with open(mp) as f:
+                            entries.append(json.load(f))
+        else:
+            # all backends: failures/<backend>/<slug>/manifest.json
+            if os.path.isdir(self.failures_dir):
+                for be in sorted(os.listdir(self.failures_dir)):
+                    be_dir = os.path.join(self.failures_dir, be)
+                    if not os.path.isdir(be_dir):
+                        continue
+                    for slug in sorted(os.listdir(be_dir)):
+                        mp = os.path.join(be_dir, slug, "manifest.json")
+                        if os.path.exists(mp):
+                            with open(mp) as f:
+                                entries.append(json.load(f))
         return entries
 
     def summarize(self) -> Dict[str, Any]:

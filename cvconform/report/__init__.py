@@ -54,4 +54,20 @@ def render_human(report: Dict[str, Any]) -> str:
             L.append("")
     else:
         L.append("FINDINGS: none — all targets conformant within policy.")
+
+    # Research summaries
+    research = report.get("research", [])
+    if research:
+        L.append("RESEARCH")
+        L.append("-" * 62)
+        for r in research:
+            L.append(f"  [{r.get('backend')}] {r.get('cause')}")
+            if r.get("matched_issue"):
+                L.append(f"    similar issue: {r.get('matched_issue')}")
+            if r.get("recommendation"):
+                L.append(f"    recommend:     {r.get('recommendation')}")
+            if r.get("sources"):
+                for s in r["sources"][:1]:
+                    L.append(f"    source:        {s.get('title','')} {s.get('url','')}")
+            L.append("")
     return "\n".join(L)
