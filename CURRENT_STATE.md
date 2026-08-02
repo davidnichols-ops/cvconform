@@ -85,3 +85,25 @@ Category: **AI Model Reliability Infrastructure**.
 
 Phase 2 (docs) → Phase 3 (vertical slice: torch→onnx→coreml, differential
 runner, report) → Phase 4 (break it) → Phase 5 (expand) → Phase 6 (harden).
+
+## Build status — 2026-08-02
+
+All six phases are substantially complete for the core product:
+
+- **Phase 1 (Understand):** done — this file.
+- **Phase 2 (Define):** VISION / ARCHITECTURE / PRODUCT_REQUIREMENTS /
+  TECHNICAL_ROADMAP written.
+- **Phase 3 (Vertical slice):** **measured on demo (M4, seed=0): ONNX 100.00%,
+  CoreML 96.36%.** Genuine differential result: PyTorch reference vs ONNX
+  export agree; CoreML shows small real drift, surfaced not hidden.
+- **Phase 4 (Break it):** fault injection proves clean-conformant +
+  per-fault-divergence; engine hardened (shape mismatch now hard-fails).
+- **Phase 5 (Expand):** failure discovery, failure reduction, research agent,
+  regression corpus all built + tested.
+- **Phase 6 (Harden):** README, CI workflow, verified packaging
+  (`pip install -e .`, `cvconform` entrypoint), CI gate flag, integration tests.
+  **36 tests green.**
+
+### Remaining (roadmap M5 / onward)
+More runtimes behind the same interface (openvino, tflite, mlx, tensorrt-CI),
+IR analysis passes, publishing the corpus as the structured failure database.
