@@ -204,6 +204,8 @@ def score_from_metrics(metrics: Dict[str, float], kind: str, policy: TolerancePo
     """Map per-kind metric dict to a 0..100 conformance score."""
     if "kind_mismatch" in metrics or "error" in metrics or "unsupported_kind" in metrics:
         return 0.0
+    if "shape_mismatch" in metrics:
+        return 0.0  # a shape mismatch is a hard conformance failure
     if kind == "tensor":
         max_abs = metrics.get("max_abs_err", 0.0)
         mean_abs = metrics.get("mean_abs_err", 0.0)
@@ -249,9 +251,10 @@ def build_divergences(target: str, reference: str, per_output_metrics: Dict[str,
         if "max_abs_err" in metrics:
             mae = metrics["max_abs_err"]
             th = policies["tensor"].max_abs_err
-            if mae > th:
+            if mae > th or "shape_mismatch" in metrics:
                 divs.append(Divergence(out, "tensor", "max_abs_err", observed=mae, threshold=th,
-                                       magnitude=mae - th, mechanism="Tensor value divergence"))
+                                       magnitude=mae - th if np.isfinite(mae) else 1e9,
+                                       mechanism="Tensor value divergence (or shape mismatch)"))
         if "mean_abs_err" in metrics and "max_abs_err" not in metrics:
             mae = metrics["mean_abs_err"]
             th = policies["scores"].mean_abs_err
