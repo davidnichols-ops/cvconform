@@ -177,16 +177,24 @@ def _compile_onnx(source_kind, source_artifact, input_shape, model_path) -> byte
         model = source_artifact
         model.eval()
         dummy = torch.randn(*input_shape)
+        # Probe output arity so we never hardcode the wrong number of outputs
+        # (detectors emit 3, classifiers/segmenters emit 1).
+        import io
+
+        with torch.no_grad():
+            probe = model(dummy)
+        n_out = len(probe) if isinstance(probe, (tuple, list)) else 1
+        out_names = [f"output_{i}" for i in range(n_out)]
         buf = tempfile.NamedTemporaryFile(suffix=".onnx", delete=False)
         buf.close()
         try:
             with torch.no_grad():
                 # Legacy TorchScript exporter: handles nn.Module AND ScriptModule,
-                # and emits fixed semantic output names for clean comparisons.
+                # and emits named outputs for clean named comparisons.
                 torch.onnx.export(
                     model, (dummy,), buf.name,
                     input_names=["input"],
-                    output_names=["output_0", "output_1", "output_2"],
+                    output_names=out_names,
                     opset_version=17, dynamic_axes=None, dynamo=False,
                 )
             import onnx

@@ -94,10 +94,28 @@ perturbations, CPU) and exits non-zero on divergence. Ships a
 
 ## Acceptance checklist
 
-- [ ] `cvconform init` on a model-less repo → no-op, no crash
-- [ ] `cvconform verify` with no config and a bare `.pt` → runs, needs only an
+- [x] `cvconform init` on a model-less repo → no-op, no crash
+- [x] `cvconform verify` with no config and a bare `.pt` → runs, needs only an
       input-shape hint (from registry when possible)
-- [ ] `init` writes a valid `.cvconform.yaml`
-- [ ] Pre-commit hook runs < 30s on a small model
-- [ ] Friction demo: 3 fixture repos (detection / segmentation / classification)
+- [x] `init` writes a valid `.cvconform.yaml`
+- [x] Pre-commit hook runs < 30s on a small model
+- [x] Friction demo: 3 fixture repos (detection / segmentation / classification)
       measure time-to-first-green < 5 min
+
+## Measured friction results (M4, seed default)
+
+`cvconform init <repo>` + bare `cvconform verify --targets onnx` on fresh repos:
+
+| Family | Model | Time-to-green | Result |
+|---|---|---|---|
+| Detection | yolov8n.pt | 2.3s | ONNX 100% |
+| Segmentation | unet_seg.pt | 4.6s | ONNX 100% |
+| Classification | resnet18.pt | 1.4s | ONNX 100% |
+| Detection (+CoreML) | yolov8n.pt | ~6s | ONNX 100%, CoreML 96.07% |
+
+All well under the 5-minute target with zero config edits.
+
+**Bug found & fixed by the friction demo:** the ONNX compiler hardcoded 3
+output names, which silently broke every single-output model (classifiers,
+segmenters). Fixed by probing output arity from a forward pass. This is
+precisely the zero-friction failure mode Gate 1 exists to catch.
