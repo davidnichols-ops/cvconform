@@ -67,11 +67,16 @@ def _make_fault_model(clean, fault, seed=0):
 
 def _run_verify(reference_model, target_model, fault, num_samples=2, seed=0):
     """Run differential: reference=clean pytorch, target=onnx from target model."""
+    import tempfile
+
     import torch
 
     pet = PyTorchRuntime()
     ort_rt = OnnxRuntime(providers=["CPUExecutionProvider"])
-    blob = _export_onnx(target_model, os.path.join(EXAMPLES_OUT, "_fault_tmp.onnx"))
+    tmp = tempfile.NamedTemporaryFile(suffix=".onnx", delete=False)
+    tmp.close()
+    blob = _export_onnx(target_model, tmp.name)
+    os.unlink(tmp.name)
 
     eng = DifferentialEngine(pet, reference_model, ["output_0", "output_1", "output_2"])
     eng.add_target("onnx", ort_rt, blob)

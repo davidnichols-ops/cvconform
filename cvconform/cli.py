@@ -33,6 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--quiet", action="store_true", help="Suppress human report on success")
     v.add_argument("--corpus", metavar="DIR", default=None,
                    help="Record findings into a conformance corpus at DIR")
+    v.add_argument("--require-conformant", action="store_true",
+                   help="Exit non-zero if any target is not fully conformant (CI gate)")
 
     # discover
     d = sub.add_parser("discover", help="Run failure discovery: hunt for diverging inputs")
@@ -90,6 +92,14 @@ def main(argv=None) -> int:
                                    "divergences": r.get("divergences")},
                     })
             print(f"\nFailures recorded into corpus: {args.corpus}")
+        if args.require_conformant:
+            bad = [t for t, s in report.get("target_status", {}).items()
+                   if s != "conformant"]
+            if bad:
+                print(f"\nCI GATE FAILED: non-conformant targets: {bad}",
+                      file=sys.stderr)
+                return 1
+            print("\nCI GATE PASSED: all targets conformant.")
         return 0
 
     elif args.command == "discover":
