@@ -128,7 +128,13 @@ class DifferentialEngine:
         return raw
 
     def _filter_outputs(self, outputs: Dict[str, Output], names: List[str]) -> Dict[str, Output]:
-        """Keep only the semantic output names we care about."""
+        """Keep only the semantic output names we care about.
+
+        If the requested names don't match what the model actually produced
+        (e.g. a config guessed one 'output' but the head emits output_0/1/2),
+        return all outputs rather than an empty/filtered set — otherwise the
+        comparison silently sees nothing.
+        """
         if names and set(names) <= set(outputs):
             return {n: outputs[n] for n in names}
         return outputs

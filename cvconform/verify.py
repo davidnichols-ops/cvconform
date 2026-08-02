@@ -50,9 +50,20 @@ def _import_obj(module_name: str, name: str):
 
 
 SOURCE_KIND_BY_EXT = {
-    ".pt": "pytorch", ".pth": "pytorch",
+    ".pt": "pytorch", ".pth": "pytorch", ".jit": "pytorch",
     ".onnx": "onnx",
     ".mlmodel": "coreml", ".mlpackage": "coreml",
+}
+
+# autodetect format string -> verify source_kind
+FORMAT_TO_SOURCE_KIND = {
+    "torchscript": "pytorch",
+    "onnx": "onnx",
+    "coreml": "coreml",
+    "tflite": "tflite",
+    "tensorrt": "tensorrt",
+    "mlx": "mlx",
+    "openvino": "openvino",
 }
 
 
@@ -261,6 +272,9 @@ def verify(
         raise FileNotFoundError(f"model not found: {model}")
 
     source_kind = source_kind or SOURCE_KIND_BY_EXT.get(os.path.splitext(model)[1].lower())
+    # autodetect may pass a format string like 'torchscript'
+    if source_kind in FORMAT_TO_SOURCE_KIND:
+        source_kind = FORMAT_TO_SOURCE_KIND[source_kind]
     if source_kind is None:
         raise ValueError(f"cannot detect source format from {model}")
 

@@ -1,0 +1,21 @@
+# pre-commit hooks for cvconform — one-line CI correctness gate.
+# Add to your repo's .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/cvconform/cvconform
+#       rev: v0.1.0
+#       hooks:
+#         - id: cvconform-verify
+#
+# The hook runs a fast subset (small sample count, CPU) and fails the commit
+# if any compiled runtime diverges from the reference.
+
+- id: cvconform-verify
+  name: cvconform verify (fast conformance gate)
+  description: Verify a CV model is still the same model across runtimes
+  entry: cvconform verify --pre-commit --require-conformant
+  language: python
+  language_version: python3
+  types: [file]
+  pass_filenames: false
+  always_run: true

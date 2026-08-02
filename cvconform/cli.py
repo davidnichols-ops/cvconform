@@ -17,15 +17,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     # verify
     v = sub.add_parser("verify", help="Run differential conformance verification on a model")
-    v.add_argument("model", help="Path to the model artifact (.onnx/.pt/.mlmodel)")
-    v.add_argument("--reference", default="pytorch",
+    v.add_argument("model", nargs="?", default=None,
+                   help="Path to the model artifact (.onnx/.pt/.mlmodel). "
+                        "Omit to auto-discover from the repo / config.")
+    v.add_argument("--reference", default=None,
                    help="Reference runtime ('pytorch','onnx','coreml')")
     v.add_argument("--targets", default=None,
                    help="Comma-separated target runtimes (default: all non-reference)")
-    v.add_argument("--dataset", default="synthetic",
+    v.add_argument("--dataset", default=None,
                    help="'synthetic' or path to dir of .npy samples")
-    v.add_argument("--seed", type=int, default=0, help="RNG seed (deterministic)")
-    v.add_argument("--samples", type=int, default=1, help="Number of input samples")
+    v.add_argument("--seed", type=int, default=None, help="RNG seed (deterministic)")
+    v.add_argument("--samples", type=int, default=None, help="Number of input samples")
     v.add_argument("--input-shape", default=None,
                    help="Override input shape, e.g. 1,3,224,224")
     v.add_argument("--json", metavar="PATH", default=None,
@@ -35,6 +37,17 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Record findings into a conformance corpus at DIR")
     v.add_argument("--require-conformant", action="store_true",
                    help="Exit non-zero if any target is not fully conformant (CI gate)")
+    v.add_argument("--no-config", action="store_true",
+                   help="Ignore .cvconform.yaml")
+    v.add_argument("--fast", action="store_true",
+                   help="Pre-commit fast mode: small subset, limit workloads")
+    v.add_argument("--pre-commit", action="store_true",
+                   help="Alias for --fast; non-zero exit on divergence (hook mode)")
+
+    # init
+    init_p = sub.add_parser("init", help="Zero-config bootstrap: detect model+data, write .cvconform.yaml")
+    init_p.add_argument("path", nargs="?", default=".", help="Repo directory to scan")
+    init_p.add_argument("--force", action="store_true", help="Overwrite existing config")
 
     # discover
     d = sub.add_parser("discover", help="Run failure discovery: hunt for diverging inputs")
@@ -51,22 +64,94 @@ def _parse_shape(s: str):
     return tuple(int(x) for x in s.split(","))
 
 
+def _autodetect_one():
+    """Auto-discover a single model artifact in the current repo."""
+    from cvconform.autodetect import scan_for_models, detect_model
+
+    models = scan_for_models(".")
+    for p in models:
+        try:
+            detect_model(p)
+            return p
+        except ValueError:
+            continue
+    return None
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+
+    if args.command == "init":
+        from cvconform.init import init_project, summarize_init
+
+        res = init_project(root=args.path, force=args.force)
+        print(summarize_init(res))
+        return 0 if res["status"] in ("written", "exists") else 1
+
     if args.command == "verify":
         from cvconform.verify import verify
+        from cvconform.config import load_config
+
+        # Resolve defaults: CLI > config > auto-discovery.
+        cfg = None if args.no_config else load_config()
+        model = args.model
+        reference = args.reference
+        targets = args.targets
+        dataset = args.dataset
+        seed = args.seed
+        num_samples = args.samples
+
+        if cfg is not None:
+            m = cfg.model or {}
+            model = model or m.get("path") or _autodetect_one()
+            reference = reference or cfg.reference
+            targets = targets or (",".join(cfg.targets) if cfg.targets else None)
+            dataset = dataset or (cfg.calibration or {}).get("source")
+            if seed is None and cfg.seed:
+                seed = cfg.seed
+
+        if model is None:
+            model = _autodetect_one() or args.model
+        if model is None:
+            print("cvconform verify: no model given and none auto-discovered "
+                  "(did you run `cvconform init`?)", file=sys.stderr)
+            return 2
+
+        # Auto-detect contract when no input info supplied.
+        input_shape = _parse_shape(args.input_shape) if args.input_shape else None
+        output_names = None
+        fmt = None
+        if input_shape is None or output_names is None:
+            from cvconform.autodetect import detect_model, detect_format
+            dm = None
+            try:
+                dm = detect_model(model)
+            except ValueError:
+                pass
+            if dm:
+                fmt = dm.format
+                if input_shape is None:
+                    input_shape = dm.input_shape
+                if output_names is None and getattr(args, "output_names", None) is None:
+                    output_names = dm.outputs
 
         kwargs = {
-            "model": args.model,
-            "reference": args.reference,
-            "dataset": args.dataset,
-            "seed": args.seed,
-            "num_samples": args.samples,
+            "model": model,
+            "reference": reference or "pytorch",
+            "dataset": dataset or "synthetic",
+            "seed": seed if seed is not None else 0,
+            "num_samples": num_samples if num_samples is not None else 1,
         }
-        if args.targets:
-            kwargs["targets"] = [t.strip() for t in args.targets.split(",") if t.strip()]
-        if args.input_shape:
-            kwargs["input_shape"] = _parse_shape(args.input_shape)
+        if targets:
+            kwargs["targets"] = [t.strip() for t in targets.split(",") if t.strip()]
+        if input_shape:
+            kwargs["input_shape"] = input_shape
+        if output_names:
+            kwargs["output_names"] = output_names
+        if fmt:
+            kwargs["source_kind"] = fmt
+        if args.fast or args.pre_commit:
+            kwargs["num_samples"] = min(kwargs.get("num_samples", 1), 1)
         report = verify(**kwargs)
 
         from cvconform.report import render_human
@@ -92,7 +177,7 @@ def main(argv=None) -> int:
                                    "divergences": r.get("divergences")},
                     })
             print(f"\nFailures recorded into corpus: {args.corpus}")
-        if args.require_conformant:
+        if args.require_conformant or args.pre_commit:
             bad = [t for t, s in report.get("target_status", {}).items()
                    if s != "conformant"]
             if bad:

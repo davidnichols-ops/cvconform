@@ -74,6 +74,10 @@ class PyTorchRuntime:
             res = list(out)
         else:
             res = [out]
+        # If caller provided too few/many names, regenerate to match count so
+        # normalization never index-errors on an unknown-arity model.
+        if output_names is not None and len(output_names) != len(res):
+            output_names = None
         names = output_names or [f"output_{i}" for i in range(len(res))]
         normalized = []
         for o in res:

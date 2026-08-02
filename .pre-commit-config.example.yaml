@@ -1,0 +1,20 @@
+# Example pre-commit config using cvconform as a conformance gate.
+# Copy/adapt into your own repo:
+#
+#   repos:
+#     - repo: https://github.com/cvconform/cvconform
+#       rev: v0.1.0
+#       hooks:
+#         - id: cvconform-verify
+#
+# Runs a fast subset (<30s on small models) and blocks the commit if a
+# compiled runtime diverges from the reference model.
+repos:
+  - repo: local
+    hooks:
+      - id: cvconform-verify
+        name: cvconform-verify
+        entry: cvconform verify --pre-commit --require-conformant
+        language: system
+        pass_filenames: false
+        always_run: true

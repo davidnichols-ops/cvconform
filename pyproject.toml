@@ -24,19 +24,26 @@ core = [
     "numpy>=1.24",
     "onnx>=1.14",
     "onnxruntime>=1.17",
+    "pyyaml>=6.0",
 ]
 pytorch = ["torch>=2.0"]
 coreml = ["coremltools>=7.0"]
 tensorflow = ["tensorflow>=2.12"]
 openvino = ["openvino>=2023.1"]
 mlx = ["mlx>=0.5"]
+tflite = ["tflite-runtime>=2.14"]
 tensorrt = ["onnx-tensorrt"]  # CI/GPU only; engines for parsing, not exec
 research = ["requests>=2.28"]
+all = [
+    "numpy>=1.24", "onnx>=1.14", "onnxruntime>=1.17", "pyyaml>=6.0",
+    "torch>=2.0", "coremltools>=7.0", "tflite-runtime>=2.14",
+]
 dev = [
     "pytest>=7",
     "pytest-cov",
     "build",
     "twine",
+    "cibuildwheel",
 ]
 
 [project.scripts]
@@ -44,6 +51,21 @@ cvconform = "cvconform.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["cvconform*"]
+
+[tool.cibuildwheel]
+# Build wheels for common CPython versions + platforms (manylinux/macosx/windows).
+build = "cp3{11,12,13}-*"
+# Pure-python distribution: build only the tagged wheel per platform.
+# Coremltools import is guarded; wheels remain platform-specific for the
+# optional-extras story but the package itself is pure.
+test-command = "python -c \"import cvconform; print(cvconform.__version__)\""
+test-extras = "core"
+repair-wheel-command = ""
+
+[[tool.cibuildwheel.overrides]]
+select = "cp312-macosx_*"
+# macOS arm64/x86_64 for Apple Silicon + Intel
+archs = ["arm64", "x86_64"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
