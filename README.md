@@ -37,8 +37,8 @@ cvconform verify    # auto-runs every installed runtime, prints a conform report
 
 It auto-discovers model format (torchscript, onnx, coreml, tflite, tensorrt
 engine, mlx, openvino), input shape, output names, and a calibration set — from
-the artifact itself or a registry of 200+ known architectures, with a sensible
-heuristic fallback.
+the artifact itself or a registry of known architectures (yolo, sam, detr,
+resnet, vit, clip, unet, pose, ocr, …), with a sensible heuristic fallback.
 
 <details>
 <summary><strong>Friction demo — measured time to first green check</strong></summary>
@@ -190,8 +190,8 @@ python -m pytest
 ```
 
 Typed Python with dataclasses, conventional commits, a green `pytest` run
-before any PR. See `PHASE1_ZERO_CONFIG.md`, `ARCHITECTURE.md`, and
-`TECHNICAL_ROADMAP.md` for the plan.
+before any PR. See `docs/report-schema.md` for the machine-readable CI
+contract and `CHANGELOG.md` for release history.
 
 ## License
 

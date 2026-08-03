@@ -27,8 +27,7 @@ correctness layer, not a demo.
 - CLI: `verify` (with `--json`, `--corpus`, `--require-conformant`) and
   `discover`.
 - Python API: `from cvconform import verify`.
-- Docs: VISION, ARCHITECTURE, PRODUCT_REQUIREMENTS, TECHNICAL_ROADMAP,
-  CURRENT_STATE, README, CI workflow.
+- Docs: `README`, `docs/report-schema.md`, CI workflow.
 
 **Measured on the demo (M4, seed=0):** ONNX 100.00% conformant, CoreML 96.36%.
 
