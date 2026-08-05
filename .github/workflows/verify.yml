@@ -11,6 +11,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            targets: onnx
+          - os: macos-latest
+            targets: onnx,coreml
+          - os: windows-latest
+            targets: onnx
     steps:
       - uses: actions/checkout@v4
 
@@ -19,5 +26,6 @@ jobs:
           # Omit model -> auto-discover from repo; or point at one:
           # model: yolo11.pt
           reference: pytorch
-          targets: onnx,coreml
+          targets: ${{ matrix.targets }}
+          args: --require-conformant
           comment: 'true'

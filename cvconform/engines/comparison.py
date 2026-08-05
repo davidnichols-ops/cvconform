@@ -251,10 +251,16 @@ def build_divergences(target: str, reference: str, per_output_metrics: Dict[str,
         if "max_abs_err" in metrics:
             mae = metrics["max_abs_err"]
             th = policies["tensor"].max_abs_err
-            if mae > th or "shape_mismatch" in metrics:
+            if mae > th or "shape_mismatch" in metrics or not np.isfinite(mae):
                 divs.append(Divergence(out, "tensor", "max_abs_err", observed=mae, threshold=th,
                                        magnitude=mae - th if np.isfinite(mae) else 1e9,
                                        mechanism="Tensor value divergence (or shape mismatch)"))
+        nan_frac = metrics.get("nan_tgt", 0.0)
+        inf_frac = metrics.get("inf_tgt", 0.0)
+        if nan_frac > 0.0 or inf_frac > 0.0:
+            divs.append(Divergence(out, "tensor", "nan_inf", observed=nan_frac + inf_frac, threshold=0.0,
+                                   magnitude=nan_frac + inf_frac,
+                                   mechanism="Target output contains NaN/Inf values"))
         if "mean_abs_err" in metrics and "max_abs_err" not in metrics:
             mae = metrics["mean_abs_err"]
             th = policies["scores"].mean_abs_err

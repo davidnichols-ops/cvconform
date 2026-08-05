@@ -57,6 +57,15 @@ runs:
           python -m pip install --quiet -e ".[${EXTRAS}]"
         fi
 
+    - name: Generate demo artifacts
+      if: inputs.model == ''
+      shell: bash
+      run: |
+        # If no model is provided, generate the demo artifact so verify has a target.
+        if [ -z "${{ inputs.model }}" ] && [ -f examples/demo_model.py ]; then
+          python examples/demo_model.py
+        fi
+
     - name: Verify conformance
       id: verify
       shell: bash
