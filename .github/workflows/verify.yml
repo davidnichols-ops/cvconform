@@ -15,7 +15,7 @@ jobs:
           - os: ubuntu-latest
             targets: onnx
           - os: macos-latest
-            targets: onnx,coreml
+            targets: onnx
           - os: windows-latest
             targets: onnx
     steps:
