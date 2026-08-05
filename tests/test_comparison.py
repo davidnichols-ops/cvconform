@@ -57,6 +57,17 @@ def test_nan_lowers_score():
     assert score_from_metrics(metrics, "tensor", pol) < 100.0
 
 
+def test_nan_target_emits_divergence():
+    """NaN values in a target tensor must be reported as a divergence."""
+    ref = _tensor(np.zeros((4, 4)), "t")
+    arr = np.zeros((4, 4), dtype=np.float32)
+    arr[0, 0] = np.nan
+    tgt = _tensor(arr, "t")
+    res = compare_target({"t": ref}, {"t": tgt}, "onnx", "ref", TolerancePolicy())
+    assert any(d.metric == "nan_inf" for d in res.divergences)
+    assert not res.is_conformant
+
+
 def test_box_matching():
     from cvconform.engines.comparison import _iou
 

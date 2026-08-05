@@ -47,12 +47,24 @@ runs:
     - name: Install cvconform (cached wheels)
       shell: bash
       run: |
-        # Prefer installed; fall back to the checkout's local wheel if building.
+        # Install the local checkout with the runtimes we intend to verify.
         python -m pip install --quiet --upgrade pip
         if [ -f pyproject.toml ]; then
-          python -m pip install --quiet -e .[pytorch] 2>/dev/null || true
+          EXTRAS="core,pytorch"
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            EXTRAS="${EXTRAS},coreml"
+          fi
+          python -m pip install --quiet -e ".[${EXTRAS}]"
         fi
-        python -m pip install --quiet cvconform 2>/dev/null || echo "note: cvconform not on PyPI yet; using local checkout"
+
+    - name: Generate demo artifacts
+      if: inputs.model == ''
+      shell: bash
+      run: |
+        # If no model is provided, generate the demo artifact so verify has a target.
+        if [ -z "${{ inputs.model }}" ] && [ -f examples/demo_model.py ]; then
+          python examples/demo_model.py
+        fi
 
     - name: Verify conformance
       id: verify
@@ -74,12 +86,9 @@ runs:
 
         CONFORMANT=false
         if [ -f "$REPORT" ]; then
-          if python - "$REPORT" <<'PY'
-import json,sys
-r=json.load(open(sys.argv[1]))
-sys.exit(0 if all(s=="conformant" for s in r.get("target_status",{}).values()) else 1)
-PY
-          then CONFORMANT=true; fi
+          if python - "$REPORT" -c 'import json,sys; r=json.load(open(sys.argv[1])); sys.exit(0 if all(s=="conformant" for s in r.get("target_status",{}).values()) else 1)'; then
+            CONFORMANT=true
+          fi
         fi
 
         echo "report_path=$REPORT" >> "$GITHUB_OUTPUT"
@@ -107,22 +116,4 @@ PY
           echo "::warning::cvconform report not found; skipping comment"
           exit 0
         fi
-        python - "$REPORT" "${{ runner.os }}" <<'PY'
-import json, os, sys
-r = json.load(open(sys.argv[1]))
-os_name = sys.argv[2]
-conformant = all(s == "conformant" for s in r.get("target_status", {}).values())
-badge = ":white_check_mark:" if conformant else ":x:"
-lines = [f"## cvconform conformance ({os_name}) {badge}"]
-for t, status in (r.get("target_status") or {}).items():
-    score = (r.get("targets", {}).get(t) or {}).get("overall_score", 0.0)
-    lines.append(f"- **{t}**: {score:.2f}% · {status}")
-if not conformant:
-    lines.append("\n### Findings")
-    for f in r.get("findings", []):
-        lines.append(f"- `{f.get('backend')}` · {f.get('cause')} (conf {f.get('confidence')})")
-body = "\n".join(lines)
-# write to a footer file that a follow-up step can comment (no GITHUB_TOKEN here)
-open(os.path.join(os.path.dirname(r"""${{ github.workspace }}"""), "cvconform-pr-body.md"), "w").write(body)
-print("PR comment body prepared in cvconform-pr-body.md")
-PY
+        python "${{ github.action_path }}/comment.py" "$REPORT" "${{ runner.os }}" "${{ github.workspace }}"

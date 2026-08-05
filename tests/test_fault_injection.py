@@ -19,6 +19,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "examples"))
 
+# Fault-injection tests require PyTorch; skip the whole module if it is absent.
+torch = pytest.importorskip("torch")  # noqa: F841
+
 from demo_model import build_demo_model  # noqa: E402
 from cvconform.runtimes.pytorch_rt import PyTorchRuntime  # noqa: E402
 from cvconform.runtimes.onnx_rt import OnnxRuntime  # noqa: E402
