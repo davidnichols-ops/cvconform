@@ -40,6 +40,7 @@ _AUTO_REAL_RUNTIMES = [
     ("pytorch", "cvconform.runtimes.pytorch_rt", "PyTorchRuntime", None),
     ("onnx", "cvconform.runtimes.onnx_rt", "OnnxRuntime", "compile_onnx"),
     ("coreml", "cvconform.runtimes.coreml_rt", "CoreMLRuntime", "compile_coreml"),
+    ("tensorrt", "cvconform.runtimes.tensorrt_rt", "TensorRTRuntime", "compile_tensorrt"),
 ]
 
 
@@ -64,6 +65,14 @@ FORMAT_TO_SOURCE_KIND = {
     "tensorrt": "tensorrt",
     "mlx": "mlx",
     "openvino": "openvino",
+}
+
+
+SOURCE_KIND_BY_EXT = {
+    ".pt": "pytorch", ".pth": "pytorch", ".jit": "pytorch",
+    ".onnx": "onnx",
+    ".mlmodel": "coreml", ".mlpackage": "coreml",
+    ".engine": "tensorrt", ".plan": "tensorrt",
 }
 
 
@@ -100,6 +109,10 @@ def _load_source(model_path: str, source_kind: str):
         import coremltools as ct
 
         return ct.models.MLModel(model_path)
+    if source_kind == "tensorrt":
+        # For TensorRT, we return the engine file path as a string
+        # The runtime will load it
+        return model_path
     raise ValueError(f"unknown source format {source_kind!r}")
 
 
@@ -115,6 +128,10 @@ def _source_io_names(source_kind: str, model_path: str):
         m = ct.models.MLModel(model_path)
         s = m.get_spec()
         return [i.name for i in s.description.input], [o.name for o in s.description.output]
+    if source_kind == "tensorrt":
+        # For TensorRT, we need to load the engine to get I/O names
+        # This will be handled by the runtime directly
+        return ["input"], ["output"]
     # pytorch: positional inputs, output names from a forward pass convention
     return ["input_0"], None
 
@@ -138,6 +155,10 @@ def _input_shape_for(source_kind: str, model_path: str) -> Tuple[int, ...]:
             return (1, 3, inp.type.imageType.height, inp.type.imageType.width)
         if inp.type.HasField("multiArrayType"):
             return tuple([1] + list(inp.type.multiArrayType.shape))
+        return (1, 3, 224, 224)
+    if source_kind == "tensorrt":
+        # For TensorRT, we'll infer shape from the engine at runtime
+        # Default to common image shape
         return (1, 3, 224, 224)
     return (1, 3, 224, 224)
 
@@ -163,6 +184,9 @@ def _target_artifact(target: str, source_kind: str, source_artifact, model_path:
     if target == "coreml":
         mlmodel = _compile_coreml(source_kind, source_artifact, input_shape, model_path)
         return mlmodel, {"method": "convert_coreml", "from": source_kind}
+    if target == "tensorrt":
+        engine_path = _compile_tensorrt(source_kind, source_artifact, input_shape, model_path)
+        return engine_path, {"method": "build_tensorrt_engine", "from": source_kind}
     # Case C: unsupported path.
     raise ValueError(f"cannot compile source {source_kind} to target {target}")
 
@@ -231,6 +255,54 @@ def _compile_coreml(source_kind, source_artifact, input_shape, model_path):
         )
         return ml
     raise ValueError(f"cannot convert {source_kind} to coreml")
+
+
+def _compile_tensorrt(source_kind, source_artifact, input_shape, model_path) -> str:
+    """Convert a source to a TensorRT engine file path.
+
+    Uses ONNX as intermediate format, then builds TensorRT engine via trtexec.
+    Returns the path to the generated engine file.
+    """
+    import tempfile
+    import subprocess
+    import os
+
+    # First, get ONNX bytes
+    if source_kind == "onnx":
+        onnx_bytes = source_artifact.SerializeToString()
+    elif source_kind == "pytorch":
+        # Export to ONNX first
+        onnx_bytes = _compile_onnx(source_kind, source_artifact, input_shape, model_path)
+    else:
+        raise ValueError(f"cannot convert {source_kind} to tensorrt (via ONNX)")
+
+    # Write ONNX to temp file
+    onnx_tmp = tempfile.NamedTemporaryFile(suffix=".onnx", delete=False)
+    onnx_tmp.write(onnx_bytes)
+    onnx_tmp.close()
+
+    # Output engine path
+    engine_tmp = tempfile.NamedTemporaryFile(suffix=".engine", delete=False)
+    engine_path = engine_tmp.name
+    engine_tmp.close()
+
+    try:
+        # Build TensorRT engine using trtexec
+        # Note: trtexec is part of TensorRT installation
+        cmd = [
+            "trtexec",
+            f"--onnx={onnx_tmp.name}",
+            f"--saveEngine={engine_path}",
+            "--fp16",  # Enable FP16 for performance
+            "--workspace=1024",  # 1GB workspace
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode != 0:
+            raise RuntimeError(f"trtexec failed: {result.stderr}")
+        
+        return engine_path
+    finally:
+        os.unlink(onnx_tmp.name)
 
 
 def _source_output_names(source_kind, source_artifact, model_path, input_shape):
@@ -390,6 +462,9 @@ def _target_artifact_from_path(path, target):
         return _load_source(path, "onnx").SerializeToString()
     if target == "coreml":
         return _load_source(path, "coreml")
+    if target == "tensorrt":
+        # Return the engine file path
+        return path
     return _load_source(path, target)
 
 
