@@ -7,4 +7,4 @@ The universal answer to "is this still the same model?"
 
 __version__ = "0.1.0"
 
-from cvconform.verify import verify  # noqa: E402,F401
+from cvconform.verify import verify, verify_to_json  # noqa: E402,F401
