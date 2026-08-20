@@ -1,0 +1,72 @@
+name: "cvconform Verify"
+description: "Run cvconform differential conformance verification on a model"
+inputs:
+  model_path:
+    description: "Path to the model file (.pt, .onnx, .engine, .mlmodel)"
+    required: true
+  reference:
+    description: "Reference runtime (pytorch, onnx, coreml)"
+    required: false
+    default: "pytorch"
+  targets:
+    description: "Comma-separated target runtimes to verify (onnx, coreml, tensorrt)"
+    required: false
+    default: "onnx,coreml,tensorrt"
+  require_conformant:
+    description: "Exit with non-zero code if any target is non-conformant"
+    required: false
+    default: "true"
+  seed:
+    description: "Random seed for reproducible inputs"
+    required: false
+    default: "0"
+  num_samples:
+    description: "Number of synthetic samples to test"
+    required: false
+    default: "1"
+  install_extras:
+    description: "Extra pip dependencies to install (e.g., 'tensorrt pycuda')"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: "pip"
+
+    - name: Install cvconform
+      shell: bash
+      run: |
+        pip install cvconform${{ inputs.install_extras && format('[{0}]', inputs.install_extras) || '' }}
+
+    - name: Run cvconform verify
+      id: cvconform
+      shell: bash
+      run: |
+        set -e
+        TARGETS="${{ inputs.targets }}"
+        REQUIRE_CONFORMANT="${{ inputs.require_conformant }}"
+        
+        CMD="cvconform verify ${{ inputs.model_path }} --reference ${{ inputs.reference }} --targets $TARGETS --seed ${{ inputs.seed }} --num-samples ${{ inputs.num_samples }}"
+        
+        if [ "$REQUIRE_CONFORMANT" = "true" ]; then
+          CMD="$CMD --require-conformant"
+        fi
+        
+        echo "Running: $CMD"
+        eval $CMD
+        echo "cvconform completed successfully"
+
+    - name: Upload cvconform report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: cvconform-report
+        path: |
+          *.json
+          cvconform-report.json
+        retention-days: 7
